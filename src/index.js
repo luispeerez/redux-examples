@@ -1,11 +1,33 @@
 import {createStore} from 'redux'
 import React from 'react'
 import {render} from 'react-dom'
-import {Provider} from 'react-redux'
+import {connect,Provider} from 'react-redux'
 import {testAddTodo, testToggleTodo} from './tests'
 import {todoApp} from './reducers'
 
+//Action creators
+const setVisibilityFilter = (filter) => {
+	return {
+		type:'SET_VISIBILITY_FILTER',
+		filter: filter
+	};
+};
+
 let nextTodoId = 0;
+const addTodo = (text) => {
+	return {
+		type:'ADD_TODO',
+		id: nextTodoId++,
+		text
+	};
+};
+
+const toggleTodo = (id) => {
+	return {
+		type:'TOGGLE_TODO',
+		id
+	}	
+}
 
 //Presentational 
 const Link = ({
@@ -13,6 +35,7 @@ const Link = ({
 	children,
 	onClick
 }) => {
+	console.log('link active: ', active);
 	if(active){
 		return <span>{children}</span>;
 	}
@@ -29,41 +52,23 @@ const Link = ({
 	)
 };
 
-//Functional / Container component
-class FilterLink extends React.Component{
-	componentDidMount(){
-		const {store} = this.context;
-		this.unsubscribe = store.subscribe( () => 
-			this.forceUpdate()
-		)
+const mapStateToLinkProps = (state, ownProps) => {
+	return {
+		active: ownProps.filter === state.visibilityFilter
 	}
-	componentWillUnmount(){
-		this.unsubscribe();
-	}
-	render(){
-		const props = this.props;
-		const {store} = this.context;
-		const state = store.getState();
+};
 
-		return (
-			<Link
-				active={props.filter === state.visibilityFilter}
-				onClick={ () => {
-					store.dispatch({
-						type:'SET_VISIBILITY_FILTER',
-						filter: props.filter
-					});
-				}}
-			>
-				{props.children}
-			</Link>
-		)
+const mapDispatchToLinkProps = (dispatch, ownProps) => {
+	return {
+		onClick: () => {
+			dispatch(setVisibilityFilter(ownProps.filter))
+		}
 	}
 }
-FilterLink.contextTypes = {
-	store: React.PropTypes.object
-}; 
-
+const FilterLink = connect(
+	mapStateToLinkProps,
+	mapDispatchToLinkProps
+)(Link);
 
 const Filters = () => (
 	<p>
@@ -127,48 +132,31 @@ const getVisibleTodos = (todos, filter) => {
 	}
 };
 
-//Functional / Container component
-class VisibleTodoList extends React.Component{
-	componentDidMount(){
-		const {store} = this.context;
-		this.unsubscribe = store.subscribe( () => 
-			this.forceUpdate()
-		)
-	}
-	componentWillUnmount(){
-		this.unsubscribe();
-	}
-	render(){
-		const props = this.props;
-		const {store} = this.context;
-		const state = store.getState();
 
-		return (
-			<TodoList 
-				todos={ getVisibleTodos(
-					state.todos, 
-					state.visibilityFilter
-				)}
-				onTodoClick={
-					(id) => {
-						store.dispatch({
-							type:'TOGGLE_TODO',
-							id
-						})
-					}
-				}
-			/> 
-		);
+const mapStateToTodoListProps = (state) => {
+	return { 
+		todos: getVisibleTodos(
+			state.todos, 
+			state.visibilityFilter
+		)		
 	}
 }
+const mapDispatchToTodoListProps = (dispatch) => {
+	return {
+		onTodoClick: (id) => {
+			dispatch(toggleTodo(id))
+		}		
+	}
+}
+//CONTAINER COMPONNT -> PRESENTATIONAL COMPONENT
+const VisibleTodoList = connect(
+	mapStateToTodoListProps,
+	mapDispatchToTodoListProps
+)(TodoList);
 
-//Which context to receive 
-VisibleTodoList.contextTypes = {
-	store: React.PropTypes.object
-}; 
 
 //Functional or Presentation component
-const AddTodo = (props, {store}) => {
+let AddTodo = ({dispatch}) => {
 	let input;
 	return (
 		<div>
@@ -176,23 +164,15 @@ const AddTodo = (props, {store}) => {
 				input = node;
 			}} />
 			<button onClick={ () => { 
-					store.dispatch({
-						type:'ADD_TODO',
-						id: nextTodoId++,
-						text: input.value
-					});
+					dispatch(addTodo(input.value))
 					input.value = ''; 
 				}}>
 			 	ADD TASK
 	 		</button>
 	 	</div>
 	);
-}
-
-AddTodo.contextTypes = {
-	store: React.PropTypes.object
 };
-
+AddTodo = connect()(AddTodo);
 
 
 const TodoApp = () => (
@@ -203,46 +183,11 @@ const TodoApp = () => (
 	</div>
 )
 
-const dispatchSampleActions = () => {
-	store.dispatch({
-		id: 0,
-		type: 'ADD_TODO',
-		text: 'Primer todo'
-	});
-
-	store.dispatch({
-		id: 1,
-		type: 'ADD_TODO',
-		text: 'Segundo todo'
-	});
-
-	store.dispatch({
-		type:'SET_VISIBILITY_FILTER',
-		filter: 'SHOW_COMPLETED'
-	});
-};
 
 const runTests = () => {
 	testAddTodo();
 	testToggleTodo();
 };
-
-
-/*
-class Provider extends React.Component{
-	getChildContext(){
-		return {
-			store: this.props.store
-		};
-	}
-	render(){
-		return this.props.children;
-	}
-}
-Provider.childContextTypes = {
-	store: React.PropTypes.object
-};
-*/
 
 const renderApp = () => {
 	render(
@@ -254,7 +199,6 @@ const renderApp = () => {
 };
 
 renderApp();
-//dispatchSampleActions();
 
 
 
